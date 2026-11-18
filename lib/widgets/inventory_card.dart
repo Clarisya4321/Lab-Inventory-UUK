@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 import '../app_theme.dart';
 import '../services/inventory_service.dart';
 
-/// Gambar barang dari URL. Jika gagal dimuat, tampil ikon kategori.
 class ItemImage extends StatelessWidget {
   final String url;
   final String category;
@@ -12,6 +12,7 @@ class ItemImage extends StatelessWidget {
 
   Widget _placeholder() {
     final c = categoryColor(category);
+
     return Container(
       color: c.withValues(alpha: 0.15),
       alignment: Alignment.center,
@@ -22,6 +23,7 @@ class ItemImage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (url.isEmpty) return _placeholder();
+
     return Image.network(
       url,
       fit: BoxFit.cover,
@@ -34,7 +36,6 @@ class ItemImage extends StatelessWidget {
   }
 }
 
-/// Lencana status: Available (hijau) / Borrowed (merah).
 class StatusBadge extends StatelessWidget {
   final String status;
 
@@ -43,6 +44,7 @@ class StatusBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = statusColor(status);
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
@@ -60,8 +62,11 @@ class StatusBadge extends StatelessWidget {
           const SizedBox(width: 5),
           Text(
             status,
-            style:
-                TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: c),
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: c,
+            ),
           ),
         ],
       ),
@@ -77,6 +82,7 @@ class _CategoryChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = categoryColor(category);
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
@@ -90,8 +96,11 @@ class _CategoryChip extends StatelessWidget {
           const SizedBox(width: 4),
           Text(
             category,
-            style:
-                TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: c),
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: c,
+            ),
           ),
         ],
       ),
@@ -99,8 +108,6 @@ class _CategoryChip extends StatelessWidget {
   }
 }
 
-/// Kartu barang. compact = true untuk scroll horizontal di Beranda,
-/// compact = false untuk daftar di halaman Inventaris (ada tombol aksi).
 class InventoryCard extends StatelessWidget {
   final Map<String, dynamic> item;
   final bool compact;
@@ -146,7 +153,9 @@ class InventoryCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(child: ItemImage(url: image, category: category)),
+            Expanded(
+              child: ItemImage(url: image, category: category),
+            ),
             Padding(
               padding: const EdgeInsets.all(10),
               child: Column(
@@ -158,20 +167,46 @@ class InventoryCard extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.text),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.text,
+                    ),
                   ),
                   const SizedBox(height: 2),
                   Text(
                     category,
                     style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w500,
-                        color: categoryColor(category)),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                      color: categoryColor(category),
+                    ),
                   ),
                   const SizedBox(height: 6),
                   StatusBadge(status: status),
+                  if (status == 'Available' && onBorrow != null) ...[
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 32,
+                      child: ElevatedButton.icon(
+                        onPressed: onBorrow,
+                        icon: const Icon(Icons.shopping_bag_rounded, size: 15),
+                        label: const Text(
+                          'Pinjam',
+                          style: TextStyle(fontSize: 12),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.accent,
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          padding: EdgeInsets.zero,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -182,8 +217,15 @@ class InventoryCard extends StatelessWidget {
   }
 
   Widget _list(
-      String name, String category, String status, String image, String code) {
-    final hasMenu = onEdit != null || onDelete != null;
+    String name,
+    String category,
+    String status,
+    String image,
+    String code,
+  ) {
+    final hasMenu =
+        status == 'Available' && (onEdit != null || onDelete != null);
+
     return Material(
       color: Colors.white,
       elevation: 2,
@@ -218,9 +260,10 @@ class InventoryCard extends StatelessWidget {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
-                                fontSize: 14.5,
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.text),
+                              fontSize: 14.5,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.text,
+                            ),
                           ),
                         ),
                         if (hasMenu)
@@ -229,38 +272,60 @@ class InventoryCard extends StatelessWidget {
                             height: 24,
                             child: PopupMenuButton<String>(
                               padding: EdgeInsets.zero,
-                              icon: const Icon(Icons.more_vert_rounded,
-                                  size: 20, color: AppColors.muted),
+                              icon: const Icon(
+                                Icons.more_vert_rounded,
+                                size: 20,
+                                color: AppColors.muted,
+                              ),
                               onSelected: (v) {
+                                if (status != 'Available') return;
                                 if (v == 'edit') onEdit?.call();
                                 if (v == 'delete') onDelete?.call();
                               },
-                              itemBuilder: (context) => const [
-                                PopupMenuItem(
+                              itemBuilder: (context) => [
+                                if (onEdit != null)
+                                  const PopupMenuItem(
                                     value: 'edit',
-                                    child: Row(children: [
-                                      Icon(Icons.edit_rounded,
-                                          size: 18, color: AppColors.primary),
-                                      SizedBox(width: 8),
-                                      Text('Edit'),
-                                    ])),
-                                PopupMenuItem(
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          Icons.edit_rounded,
+                                          size: 18,
+                                          color: AppColors.primary,
+                                        ),
+                                        SizedBox(width: 8),
+                                        Text('Edit'),
+                                      ],
+                                    ),
+                                  ),
+                                if (onDelete != null)
+                                  const PopupMenuItem(
                                     value: 'delete',
-                                    child: Row(children: [
-                                      Icon(Icons.delete_rounded,
-                                          size: 18, color: AppColors.borrowed),
-                                      SizedBox(width: 8),
-                                      Text('Hapus'),
-                                    ])),
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          Icons.delete_rounded,
+                                          size: 18,
+                                          color: AppColors.borrowed,
+                                        ),
+                                        SizedBox(width: 8),
+                                        Text('Hapus'),
+                                      ],
+                                    ),
+                                  ),
                               ],
                             ),
                           ),
                       ],
                     ),
                     const SizedBox(height: 2),
-                    Text(code,
-                        style: const TextStyle(
-                            fontSize: 12, color: AppColors.muted)),
+                    Text(
+                      code,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.muted,
+                      ),
+                    ),
                     const SizedBox(height: 8),
                     Wrap(
                       spacing: 6,
@@ -277,30 +342,46 @@ class InventoryCard extends StatelessWidget {
                         child: status == 'Borrowed'
                             ? OutlinedButton.icon(
                                 onPressed: onReturn,
-                                icon: const Icon(Icons.assignment_return_rounded,
-                                    size: 16),
-                                label: const Text('Kembalikan',
-                                    style: TextStyle(fontSize: 12)),
+                                icon: const Icon(
+                                  Icons.assignment_return_rounded,
+                                  size: 16,
+                                ),
+                                label: const Text(
+                                  'Kembalikan',
+                                  style: TextStyle(fontSize: 12),
+                                ),
                                 style: OutlinedButton.styleFrom(
-                                  foregroundColor: AppColors.borrowed,
+                                  foregroundColor: const Color.fromARGB(
+                                    255,
+                                    215,
+                                    27,
+                                    14,
+                                  ),
                                   side: const BorderSide(
-                                      color: AppColors.borrowed),
+                                    color: Color.fromARGB(255, 216, 27, 13),
+                                  ),
                                   shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(10)),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
                                 ),
                               )
                             : ElevatedButton.icon(
                                 onPressed: onBorrow,
-                                icon: const Icon(Icons.shopping_bag_rounded,
-                                    size: 16),
-                                label: const Text('Pinjam',
-                                    style: TextStyle(fontSize: 12)),
+                                icon: const Icon(
+                                  Icons.shopping_bag_rounded,
+                                  size: 16,
+                                ),
+                                label: const Text(
+                                  'Pinjam',
+                                  style: TextStyle(fontSize: 12),
+                                ),
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: AppColors.accent,
                                   foregroundColor: Colors.white,
                                   elevation: 0,
                                   shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(10)),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
                                 ),
                               ),
                       ),
@@ -316,81 +397,212 @@ class InventoryCard extends StatelessWidget {
   }
 }
 
-/// Menampilkan detail barang (bottom sheet).
 void showItemDetail(BuildContext context, Map<String, dynamic> item) {
   final name = (item['item_name'] ?? '-').toString();
   final category = (item['category'] ?? '-').toString();
   final status = (item['status'] ?? 'Available').toString();
 
-  Widget row(String label, String value) => Padding(
-        padding: const EdgeInsets.only(bottom: 10),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SizedBox(
-              width: 110,
-              child: Text(label,
-                  style:
-                      const TextStyle(color: AppColors.muted, fontSize: 13)),
+  Widget row(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 110,
+            child: Text(
+              label,
+              style: const TextStyle(color: AppColors.muted, fontSize: 13),
             ),
-            Expanded(
-              child: Text(value,
-                  style: const TextStyle(
-                      color: AppColors.text,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600)),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(
+                color: AppColors.text,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
             ),
-          ],
-        ),
-      );
+          ),
+        ],
+      ),
+    );
+  }
 
   showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.white,
+    useSafeArea: true,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
     ),
-    builder: (context) => SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(18),
-                child: SizedBox(
-                  height: 190,
-                  width: double.infinity,
-                  child: ItemImage(
-                      url: (item['image'] ?? '').toString(),
-                      category: category),
+    builder: (sheetContext) {
+      final tinggiLayar = MediaQuery.of(sheetContext).size.height;
+
+      return StatefulBuilder(
+        builder: (context, setSheetState) {
+          bool sedangMeminjam = false;
+
+          return SizedBox(
+            height: tinggiLayar * 0.90,
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Container(
+                    width: 42,
+                    height: 5,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade300,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 16),
-              Text(name,
-                  style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.text)),
-              const SizedBox(height: 8),
-              StatusBadge(status: status),
-              const SizedBox(height: 16),
-              row('Kode', (item['code'] ?? '-').toString()),
-              row('Kategori', category),
-              row('Spesifikasi', (item['spesification'] ?? '-').toString()),
-              row('Ditambahkan', formatTanggal(item['created_at'])),
-            ],
-          ),
-        ),
-      ),
-    ),
+                Expanded(
+                  child: SingleChildScrollView(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SizedBox(
+                          width: double.infinity,
+                          height: tinggiLayar * 0.48,
+                          child: ItemImage(
+                            url: (item['image'] ?? '').toString(),
+                            category: category,
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.all(20),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                name,
+                                style: const TextStyle(
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.text,
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              StatusBadge(status: status),
+                              const SizedBox(height: 22),
+                              row(
+                                'Kode Barang',
+                                (item['code'] ?? '-').toString(),
+                              ),
+                              row('Kategori', category),
+                              row(
+                                'Spesifikasi',
+                                (item['spesification'] ?? '-').toString(),
+                              ),
+                              row(
+                                'Ditambahkan',
+                                formatTanggal(item['created_at']),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                if (status == 'Available')
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
+                    child: SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: ElevatedButton.icon(
+                        onPressed: sedangMeminjam
+                            ? null
+                            : () async {
+                                final user = FirebaseAuth.instance.currentUser;
+
+                                if (user == null) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        'Silakan login terlebih dahulu.',
+                                      ),
+                                    ),
+                                  );
+                                  return;
+                                }
+
+                                setSheetState(() {
+                                  sedangMeminjam = true;
+                                });
+
+                                try {
+                                  await InventoryService().borrowItem(
+                                    uid: user.uid,
+                                    item: item,
+                                  );
+
+                                  if (!context.mounted) return;
+
+                                  Navigator.pop(sheetContext);
+
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        'Pengajuan peminjaman berhasil!',
+                                      ),
+                                      backgroundColor: Colors.green,
+                                    ),
+                                  );
+                                } catch (e) {
+                                  if (!context.mounted) return;
+
+                                  setSheetState(() {
+                                    sedangMeminjam = false;
+                                  });
+
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        'Gagal mengajukan pinjaman: $e',
+                                      ),
+                                    ),
+                                  );
+                                }
+                              },
+                        icon: sedangMeminjam
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Icon(Icons.shopping_bag_rounded),
+                        label: Text(
+                          sedangMeminjam ? 'Memproses...' : 'Ajukan Pinjam',
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.accent,
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          );
+        },
+      );
+    },
   );
 }
 
-/// Kotak "data kosong" dengan tombol untuk mengisi data dummy ke Firestore.
 class SeedDataBox extends StatefulWidget {
   const SeedDataBox({super.key});
 
@@ -403,6 +615,7 @@ class _SeedDataBoxState extends State<SeedDataBox> {
 
   Future<void> _seed() async {
     setState(() => _loading = true);
+
     try {
       await InventoryService().seedDummyData();
     } catch (e) {
@@ -415,7 +628,9 @@ class _SeedDataBoxState extends State<SeedDataBox> {
         );
       }
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted) {
+        setState(() => _loading = false);
+      }
     }
   }
 
@@ -430,15 +645,22 @@ class _SeedDataBoxState extends State<SeedDataBox> {
       ),
       child: Column(
         children: [
-          const Icon(Icons.inventory_2_outlined,
-              size: 56, color: AppColors.primary),
+          const Icon(
+            Icons.inventory_2_outlined,
+            size: 56,
+            color: AppColors.primary,
+          ),
           const SizedBox(height: 12),
-          const Text('Belum ada data inventaris',
-              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+          const Text(
+            'Belum ada data inventaris',
+            style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+          ),
           const SizedBox(height: 4),
-          const Text('Isi data dummy ke Firestore atau tambah barang manual.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: AppColors.muted, fontSize: 13)),
+          const Text(
+            'Isi data dummy ke Firestore atau tambah barang manual.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: AppColors.muted, fontSize: 13),
+          ),
           const SizedBox(height: 16),
           ElevatedButton.icon(
             onPressed: _loading ? null : _seed,
@@ -446,14 +668,16 @@ class _SeedDataBoxState extends State<SeedDataBox> {
                 ? const SizedBox(
                     width: 16,
                     height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2))
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
                 : const Icon(Icons.auto_awesome_rounded),
             label: const Text('Isi Data Dummy'),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.accent,
               foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
           ),
         ],

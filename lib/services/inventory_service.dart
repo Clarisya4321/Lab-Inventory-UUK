@@ -8,7 +8,6 @@ class InventoryService {
   CollectionReference<Map<String, dynamic>> get _items =>
       _db.collection('items');
 
-  // URL foto barang
   final Map<String, String> _images = {
     'LAB-KMP-001':
         'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=600',
@@ -58,14 +57,46 @@ class InventoryService {
     });
   }
 
-  // Mengedit barang
+  // Memastikan barang masih tersedia sebelum diedit
   Future<void> updateItem(String itemId, Map<String, dynamic> data) async {
-    await _items.doc(itemId).update(data);
+    final ref = _items.doc(itemId);
+
+    await _db.runTransaction((transaction) async {
+      final snapshot = await transaction.get(ref);
+
+      if (!snapshot.exists) {
+        throw Exception('Barang tidak ditemukan.');
+      }
+
+      final status = snapshot.data()?['status'];
+
+      if (status != 'Available') {
+        throw Exception('Barang sedang dipinjam, tidak bisa diedit.');
+      }
+
+      transaction.update(ref, data);
+    });
   }
 
-  // Menghapus barang
+  // Menghapus barang hanya jika tersedia
   Future<void> deleteItem(String itemId) async {
-    await _items.doc(itemId).delete();
+    final ref = _items.doc(itemId);
+
+    await _db.runTransaction((transaction) async {
+      final snapshot = await transaction.get(ref);
+
+      if (!snapshot.exists) {
+        throw Exception('Barang tidak ditemukan.');
+      }
+
+      final status = snapshot.data()?['status'];
+
+      if (status != 'Available') {
+        throw Exception('Barang sedang dipinjam, tidak bisa dihapus.');
+      }
+
+      transaction.delete(ref);
+    });
   }
 
   // Meminjam barang
@@ -81,18 +112,28 @@ class InventoryService {
         .collection('borrowings')
         .doc();
 
-    final batch = _db.batch();
+    final itemRef = _items.doc(itemId);
 
-    batch.set(borrowRef, {
-      'borrow_id': borrowRef.id,
-      'item_id': itemId,
-      'item_name': item['item_name'],
-      'borrow_date': FieldValue.serverTimestamp(),
+    await _db.runTransaction((transaction) async {
+      final snapshot = await transaction.get(itemRef);
+
+      if (!snapshot.exists) {
+        throw Exception('Barang tidak ditemukan.');
+      }
+
+      if (snapshot.data()?['status'] != 'Available') {
+        throw Exception('Barang sedang dipinjam.');
+      }
+
+      transaction.set(borrowRef, {
+        'borrow_id': borrowRef.id,
+        'item_id': itemId,
+        'item_name': item['item_name'],
+        'borrow_date': FieldValue.serverTimestamp(),
+      });
+
+      transaction.update(itemRef, {'status': 'Borrowed'});
     });
-
-    batch.update(_items.doc(itemId), {'status': 'Borrowed'});
-
-    await batch.commit();
   }
 
   // Mengembalikan barang

@@ -5,8 +5,6 @@ import 'home_screen.dart';
 import 'inventory_screen.dart';
 import 'profile_screen.dart';
 
-/// Kerangka utama: BottomNavigationBar dengan 3 menu
-/// (Beranda, Inventaris, Profil).
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
 
@@ -25,6 +23,12 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Membaca role yang dikirim dari LoginScreen.
+    final role =
+        ModalRoute.of(context)?.settings.arguments as String? ?? 'user';
+
+    final isOwner = role == 'owner';
+
     return Scaffold(
       body: IndexedStack(index: _index, children: _pages),
       bottomNavigationBar: Container(
@@ -46,18 +50,18 @@ class _MainScreenState extends State<MainScreen> {
           unselectedItemColor: AppColors.muted,
           selectedFontSize: 12,
           unselectedFontSize: 12,
-          items: const [
-            BottomNavigationBarItem(
+          items: [
+            const BottomNavigationBarItem(
               icon: Icon(Icons.home_outlined),
               activeIcon: Icon(Icons.home_rounded),
               label: 'Beranda',
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.inventory_2_outlined),
-              activeIcon: Icon(Icons.inventory_2_rounded),
-              label: 'Inventaris',
+              icon: const Icon(Icons.inventory_2_outlined),
+              activeIcon: const Icon(Icons.inventory_2_rounded),
+              label: isOwner ? 'Kelola Inventaris' : 'Inventaris',
             ),
-            BottomNavigationBarItem(
+            const BottomNavigationBarItem(
               icon: Icon(Icons.person_outline_rounded),
               activeIcon: Icon(Icons.person_rounded),
               label: 'Profil',

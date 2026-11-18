@@ -4,16 +4,6 @@ import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;
 import 'package:flutter/foundation.dart'
     show defaultTargetPlatform, kIsWeb, TargetPlatform;
 
-/// Default [FirebaseOptions] for use with your Firebase apps.
-///
-/// Example:
-/// ```dart
-/// import 'firebase_options.dart';
-/// // ...
-/// await Firebase.initializeApp(
-///   options: DefaultFirebaseOptions.currentPlatform,
-/// );
-/// ```
 class DefaultFirebaseOptions {
   static FirebaseOptions get currentPlatform {
     if (kIsWeb) {
@@ -50,15 +40,13 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyBu03EnqqW9__0nKqvmV04XgsssLdNQ3b0',
-    appId: '1:26083051337:web:53058bda7b6662787dfc98',
-    messagingSenderId: '26083051337',
-    projectId: 'personal-finance-tracker-6cd30',
-    authDomain: 'personal-finance-tracker-6cd30.firebaseapp.com',
-    storageBucket: 'personal-finance-tracker-6cd30.firebasestorage.app',
-    measurementId: 'G-59QX4ER4VB',
+    apiKey: 'AIzaSyADfzgk3jN7t_LFEhFNVTE3xaY1QGLTHcg',
+    appId: '1:1029623314762:web:1db1d8e4a576bd02d0e9b3',
+    messagingSenderId: '1029623314762',
+    projectId: 'lab-inventory-55216',
+    authDomain: 'lab-inventory-55216.firebaseapp.com',
+    storageBucket: 'lab-inventory-55216.firebasestorage.app',
   );
-
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyBcgMn2E7knFcRVJg-muR2pT_AAk6gRfiE',
     appId: '1:26083051337:android:f74df001379e5cb47dfc98',

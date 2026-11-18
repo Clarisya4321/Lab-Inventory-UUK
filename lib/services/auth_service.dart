@@ -1,14 +1,14 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
-/// Mengurus Firebase Authentication dan profil pengguna di Firestore.
+/// Mengurus Firebase Authentication dan profil pengguna.
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
   User? get currentUser => _auth.currentUser;
 
-  /// Register: buat akun lalu simpan profil ke users/{uid}.
+  /// Register: semua akun baru otomatis menjadi User.
   Future<void> register({
     required String name,
     required String kelas,
@@ -19,6 +19,7 @@ class AuthService {
       email: email.trim(),
       password: password,
     );
+
     final uid = cred.user!.uid;
 
     await _db.collection('users').doc(uid).set({
@@ -26,12 +27,14 @@ class AuthService {
       'name': name.trim(),
       'email': email.trim(),
       'kelas': kelas.trim(),
+      'role': 'user',
       'created_at': FieldValue.serverTimestamp(),
       'foto':
           'https://ui-avatars.com/api/?name=${Uri.encodeComponent(name.trim())}&background=3157D5&color=fff&size=256',
     });
   }
 
+  /// Login menggunakan Firebase Authentication.
   Future<void> login(String email, String password) async {
     await _auth.signInWithEmailAndPassword(
       email: email.trim(),
@@ -39,15 +42,37 @@ class AuthService {
     );
   }
 
+  /// Mengambil role pengguna dari Firestore.
+  Future<String> getUserRole(String uid) async {
+    final doc = await _db.collection('users').doc(uid).get();
+
+    if (!doc.exists) {
+      throw Exception('Profil pengguna tidak ditemukan.');
+    }
+
+    final data = doc.data();
+
+    // Akun lama yang belum memiliki role dianggap sebagai User.
+    final role = data?['role'] ?? 'user';
+
+    if (role != 'user' && role != 'owner') {
+      throw Exception('Role akun tidak valid.');
+    }
+
+    return role.toString();
+  }
+
+  /// Logout.
   Future<void> logout() async {
     await _auth.signOut();
   }
 
-  /// Data profil pengguna (real-time).
+  /// Data profil pengguna secara real-time.
   Stream<DocumentSnapshot<Map<String, dynamic>>> userStream(String uid) {
     return _db.collection('users').doc(uid).snapshots();
   }
 
+  /// Mengambil data profil pengguna.
   Future<Map<String, dynamic>?> getUser(String uid) async {
     final doc = await _db.collection('users').doc(uid).get();
     return doc.data();

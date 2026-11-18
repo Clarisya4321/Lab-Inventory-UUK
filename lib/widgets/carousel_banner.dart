@@ -144,7 +144,7 @@ class _BannerItem extends StatelessWidget {
                   Text(
                     data.title,
                     style: const TextStyle(
-                      color: Colors.white,
+                      color: Color.fromARGB(255, 230, 7, 7),
                       fontSize: 20,
                       fontWeight: FontWeight.w700,
                     ),
@@ -152,7 +152,10 @@ class _BannerItem extends StatelessWidget {
                   const SizedBox(height: 6),
                   Text(
                     data.subtitle,
-                    style: const TextStyle(color: Colors.white, fontSize: 12.5),
+                    style: const TextStyle(
+                      color: Color.fromARGB(255, 242, 8, 8),
+                      fontSize: 12.5,
+                    ),
                   ),
                 ],
               ),

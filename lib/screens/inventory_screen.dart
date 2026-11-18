@@ -1,4 +1,3 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../app_theme.dart';
@@ -6,7 +5,6 @@ import '../services/inventory_service.dart';
 import '../widgets/inventory_card.dart';
 import '../widgets/search_field.dart';
 
-/// Inventaris: daftar real-time + Tambah, Edit, Hapus, dan Peminjaman.
 class InventoryScreen extends StatefulWidget {
   const InventoryScreen({super.key});
 
@@ -16,9 +14,12 @@ class InventoryScreen extends StatefulWidget {
 
 class _InventoryScreenState extends State<InventoryScreen> {
   final InventoryService _service = InventoryService();
-  late final Stream<List<Map<String, dynamic>>> _stream =
-      _service.itemsStream();
+
+  late final Stream<List<Map<String, dynamic>>> _stream = _service
+      .itemsStream();
+
   final TextEditingController _searchController = TextEditingController();
+
   String _query = '';
 
   @override
@@ -28,6 +29,8 @@ class _InventoryScreenState extends State<InventoryScreen> {
   }
 
   void _snack(String pesan, {bool error = false}) {
+    if (!mounted) return;
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(pesan),
@@ -37,263 +40,165 @@ class _InventoryScreenState extends State<InventoryScreen> {
     );
   }
 
-  Future<bool> _tanya(String judul, String pesan, String ya, Color warna) async {
-    final hasil = await showDialog<bool>(
+  Future<Map<String, dynamic>?> _formBarang({Map<String, dynamic>? item}) {
+    return showDialog<Map<String, dynamic>>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
-        title: Text(judul, style: const TextStyle(fontWeight: FontWeight.w700)),
-        content: Text(pesan),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Batal'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            style: ElevatedButton.styleFrom(
-                backgroundColor: warna, foregroundColor: Colors.white),
-            child: Text(ya),
-          ),
-        ],
-      ),
+      builder: (dialogContext) {
+        return FormBarangDialog(item: item);
+      },
     );
-    return hasil ?? false;
   }
 
-  String? _wajib(String? v) =>
-      (v ?? '').trim().isEmpty ? 'Wajib diisi' : null;
+  Future<void> _tambahBarang() async {
+    final data = await _formBarang();
 
-  String? _url(String? v) {
-    final t = (v ?? '').trim();
-    if (t.isEmpty) return 'Wajib diisi';
-    if (!t.startsWith('http://') && !t.startsWith('https://')) {
-      return 'Harus berupa link URL (http/https)';
+    if (data == null) return;
+
+    try {
+      await _service.addItem({...data, 'status': 'Available'});
+
+      _snack('Barang berhasil ditambahkan');
+    } catch (e) {
+      _snack('Gagal menambahkan barang: $e', error: true);
     }
-    return null;
   }
 
-  /// Form tambah (item == null) atau edit (item berisi data barang).
-  Future<void> _tampilkanForm([Map<String, dynamic>? item]) async {
-    final editId = item?['item_id']?.toString();
-    final isEdit = editId != null;
+  Future<void> _editBarang(Map<String, dynamic> item) async {
+    final data = await _formBarang(item: item);
 
-    final formKey = GlobalKey<FormState>();
-    final namaC = TextEditingController(text: item?['item_name']?.toString() ?? '');
-    final kodeC = TextEditingController(text: item?['code']?.toString() ?? '');
-    final gambarC = TextEditingController(text: item?['image']?.toString() ?? '');
-    final spesC =
-        TextEditingController(text: item?['spesification']?.toString() ?? '');
+    if (data == null) return;
 
-    final kategoriLama = item?['category']?.toString() ?? '';
-    final daftarKategori = <String>{
-      ...kCategories,
-      if (kategoriLama.isNotEmpty) kategoriLama,
-    }.toList();
-    String kategori =
-        kategoriLama.isNotEmpty ? kategoriLama : kCategories.first;
-    String status = item?['status'] == 'Borrowed' ? 'Borrowed' : 'Available';
+    try {
+      await _service.updateItem(item['item_id'].toString(), data);
 
-    await showDialog<void>(
+      _snack('Barang berhasil diperbarui');
+    } catch (e) {
+      _snack('Gagal mengedit barang: $e', error: true);
+    }
+  }
+
+  Future<void> _hapusBarang(Map<String, dynamic> item) async {
+    final ya = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
-        title: Text(isEdit ? 'Edit Barang' : 'Tambah Barang',
-            style: const TextStyle(fontWeight: FontWeight.w700)),
-        content: SizedBox(
-          width: 420,
-          child: SingleChildScrollView(
-            child: Form(
-              key: formKey,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextFormField(
-                    controller: namaC,
-                    decoration:
-                        appInput('Nama Barang', Icons.inventory_2_rounded),
-                    validator: _wajib,
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: kodeC,
-                    decoration: appInput('Kode Barang', Icons.qr_code_rounded),
-                    validator: _wajib,
-                  ),
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<String>(
-                    initialValue: kategori,
-                    isExpanded: true,
-                    decoration: appInput('Kategori', Icons.category_rounded),
-                    items: daftarKategori
-                        .map((c) => DropdownMenuItem(value: c, child: Text(c)))
-                        .toList(),
-                    onChanged: (v) => kategori = v ?? kategori,
-                  ),
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<String>(
-                    initialValue: status,
-                    isExpanded: true,
-                    decoration: appInput('Status', Icons.fact_check_rounded),
-                    items: const ['Available', 'Borrowed']
-                        .map((c) => DropdownMenuItem(value: c, child: Text(c)))
-                        .toList(),
-                    onChanged: (v) => status = v ?? status,
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: gambarC,
-                    keyboardType: TextInputType.url,
-                    decoration: appInput('Link URL Gambar', Icons.image_rounded),
-                    validator: _url,
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: spesC,
-                    maxLines: 3,
-                    decoration:
-                        appInput('Spesifikasi', Icons.description_rounded),
-                    validator: _wajib,
-                  ),
-                ],
-              ),
-            ),
-          ),
+        title: const Text('Hapus Barang'),
+        content: Text(
+          'Apakah kamu yakin ingin menghapus '
+          '"${item['item_name']}"?',
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
+            onPressed: () {
+              Navigator.pop(dialogContext, false);
+            },
             child: const Text('Batal'),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: Colors.white),
-            onPressed: () async {
-              if (!formKey.currentState!.validate()) return;
-              final data = {
-                'item_name': namaC.text.trim(),
-                'category': kategori,
-                'code': kodeC.text.trim(),
-                'status': status,
-                'image': gambarC.text.trim(),
-                'spesification': spesC.text.trim(),
-              };
-              final navigator = Navigator.of(dialogContext);
-              try {
-                if (editId != null) {
-                  await _service.updateItem(editId, data);
-                } else {
-                  await _service.addItem(data);
-                }
-                navigator.pop();
-                if (!mounted) return;
-                _snack(isEdit
-                    ? 'Barang berhasil diperbarui'
-                    : 'Barang berhasil ditambahkan');
-              } catch (e) {
-                if (!mounted) return;
-                _snack('Gagal menyimpan: $e', error: true);
-              }
+            onPressed: () {
+              Navigator.pop(dialogContext, true);
             },
-            child: const Text('Simpan'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color.fromARGB(255, 219, 25, 11),
+              foregroundColor: const Color.fromARGB(255, 201, 14, 14),
+            ),
+            child: const Text('Hapus'),
           ),
         ],
       ),
     );
-  }
 
-  Future<void> _hapus(Map<String, dynamic> item) async {
-    final ya = await _tanya(
-      'Hapus Barang',
-      'Yakin ingin menghapus "${item['item_name']}"?',
-      'Hapus',
-      AppColors.borrowed,
-    );
-    if (!ya) return;
+    if (ya != true) return;
+
     try {
       await _service.deleteItem(item['item_id'].toString());
-      if (!mounted) return;
+
       _snack('Barang berhasil dihapus');
     } catch (e) {
-      if (!mounted) return;
-      _snack('Gagal menghapus: $e', error: true);
-    }
-  }
-
-  Future<void> _pinjam(Map<String, dynamic> item) async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      _snack('Silakan login terlebih dahulu', error: true);
-      return;
-    }
-    final ya = await _tanya(
-      'Pinjam Barang',
-      'Pinjam "${item['item_name']}" sekarang?',
-      'Pinjam',
-      AppColors.accent,
-    );
-    if (!ya) return;
-    try {
-      await _service.borrowItem(uid: user.uid, item: item);
-      if (!mounted) return;
-      _snack('Berhasil meminjam ${item['item_name']}');
-    } catch (e) {
-      if (!mounted) return;
-      _snack('Gagal meminjam: $e', error: true);
+      _snack('Gagal menghapus barang: $e', error: true);
     }
   }
 
   Future<void> _kembalikan(Map<String, dynamic> item) async {
-    final ya = await _tanya(
-      'Kembalikan Barang',
-      'Kembalikan "${item['item_name']}"?',
-      'Kembalikan',
-      AppColors.available,
+    final ya = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Kembalikan Barang'),
+        content: Text('Kembalikan "${item['item_name']}"?'),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(dialogContext, false);
+            },
+            child: const Text('Batal'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(dialogContext, true);
+            },
+            child: const Text('Kembalikan'),
+          ),
+        ],
+      ),
     );
-    if (!ya) return;
+
+    if (ya != true) return;
+
     try {
       await _service.returnItem(item['item_id'].toString());
-      if (!mounted) return;
-      _snack('${item['item_name']} sudah dikembalikan');
+
+      _snack('${item['item_name']} berhasil dikembalikan');
     } catch (e) {
-      if (!mounted) return;
-      _snack('Gagal mengembalikan: $e', error: true);
+      _snack('Gagal mengembalikan barang: $e', error: true);
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    // Membaca role yang dikirim dari LoginScreen.
+    final role =
+        ModalRoute.of(context)?.settings.arguments as String? ?? 'user';
+
+    final isOwner = role == 'owner';
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Inventaris',
-            style: TextStyle(fontWeight: FontWeight.w700)),
+        title: const Text(
+          'Kotak Inventaris',
+          style: TextStyle(fontWeight: FontWeight.w700),
+        ),
         foregroundColor: Colors.white,
         backgroundColor: Colors.transparent,
         elevation: 0,
-        centerTitle: false,
         flexibleSpace: Container(
           decoration: const BoxDecoration(gradient: appGradient),
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _tampilkanForm(),
-        backgroundColor: AppColors.accent,
-        foregroundColor: Colors.white,
-        icon: const Icon(Icons.add_rounded),
-        label: const Text('Tambah'),
-      ),
+
+      // Tombol tambah hanya muncul untuk Owner.
+      floatingActionButton: isOwner
+          ? FloatingActionButton.extended(
+              onPressed: _tambahBarang,
+              backgroundColor: const Color.fromARGB(255, 246, 106, 13),
+              foregroundColor: Colors.white,
+              icon: const Icon(Icons.add),
+              label: const Text('Tambah Barang'),
+            )
+          : null,
+
       body: Column(
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
             child: SearchField(
               controller: _searchController,
-              onChanged: (v) => setState(() => _query = v),
+              onChanged: (value) {
+                setState(() {
+                  _query = value;
+                });
+              },
             ),
           ),
+
           Expanded(
             child: StreamBuilder<List<Map<String, dynamic>>>(
               stream: _stream,
@@ -303,55 +208,83 @@ class _InventoryScreenState extends State<InventoryScreen> {
                     child: Padding(
                       padding: const EdgeInsets.all(24),
                       child: Text(
-                        'Gagal memuat data. Periksa Rules Firestore.\n\n${snapshot.error}',
+                        'Gagal memuat data inventaris.\n\n'
+                        '${snapshot.error}',
                         textAlign: TextAlign.center,
                       ),
                     ),
                   );
                 }
+
                 if (!snapshot.hasData) {
                   return const Center(child: CircularProgressIndicator());
                 }
 
-                final all = snapshot.data!;
-                if (all.isEmpty) {
-                  return const Padding(
-                    padding: EdgeInsets.all(16),
-                    child: SeedDataBox(),
+                final semuaBarang = snapshot.data!;
+
+                final q = _query.trim().toLowerCase();
+
+                final items = semuaBarang.where((item) {
+                  final teks =
+                      '${item['item_name']} '
+                              '${item['category']} '
+                              '${item['code']}'
+                          .toLowerCase();
+
+                  return teks.contains(q);
+                }).toList();
+
+                if (semuaBarang.isEmpty) {
+                  return const Center(
+                    child: Text(
+                      'Belum ada data inventaris.',
+                      style: TextStyle(color: AppColors.muted),
+                    ),
                   );
                 }
 
-                final q = _query.trim().toLowerCase();
-                final items = q.isEmpty
-                    ? all
-                    : all.where((i) {
-                        final teks =
-                            '${i['item_name']} ${i['category']} ${i['code']}'
-                                .toLowerCase();
-                        return teks.contains(q);
-                      }).toList();
-
                 if (items.isEmpty) {
                   return const Center(
-                    child: Text('Tidak ada data yang cocok',
-                        style: TextStyle(color: AppColors.muted)),
+                    child: Text(
+                      'Tidak ada barang yang cocok.',
+                      style: TextStyle(color: AppColors.muted),
+                    ),
                   );
                 }
 
                 return ListView.separated(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
                   itemCount: items.length,
                   separatorBuilder: (context, index) =>
                       const SizedBox(height: 12),
-                  itemBuilder: (context, i) {
-                    final item = items[i];
+                  itemBuilder: (context, index) {
+                    final item = items[index];
+
+                    final tersedia = item['status'] == 'Available';
+
+                    final dipinjam = item['status'] == 'Borrowed';
+
                     return InventoryCard(
                       item: item,
-                      onTap: () => showItemDetail(context, item),
-                      onEdit: () => _tampilkanForm(item),
-                      onDelete: () => _hapus(item),
-                      onBorrow: () => _pinjam(item),
-                      onReturn: () => _kembalikan(item),
+
+                      onTap: () {
+                        showItemDetail(context, item);
+                      },
+
+                      // Edit hanya untuk Owner.
+                      onEdit: isOwner && tersedia
+                          ? () => _editBarang(item)
+                          : null,
+
+                      // Hapus hanya untuk Owner.
+                      onDelete: isOwner && tersedia
+                          ? () => _hapusBarang(item)
+                          : null,
+
+                      // Pengelolaan pengembalian hanya untuk Owner.
+                      onReturn: isOwner && dipinjam
+                          ? () => _kembalikan(item)
+                          : null,
                     );
                   },
                 );
@@ -360,6 +293,222 @@ class _InventoryScreenState extends State<InventoryScreen> {
           ),
         ],
       ),
+    );
+  }
+}
+
+// ==================================================
+// FORM TAMBAH DAN EDIT BARANG
+// ==================================================
+
+class FormBarangDialog extends StatefulWidget {
+  final Map<String, dynamic>? item;
+
+  const FormBarangDialog({super.key, this.item});
+
+  @override
+  State<FormBarangDialog> createState() => _FormBarangDialogState();
+}
+
+class _FormBarangDialogState extends State<FormBarangDialog> {
+  final _formKey = GlobalKey<FormState>();
+
+  late final TextEditingController _namaController;
+  late final TextEditingController _kodeController;
+  late final TextEditingController _gambarController;
+  late final TextEditingController _spesifikasiController;
+
+  late final List<String> _kategoriList;
+
+  late String _kategori;
+
+  @override
+  void initState() {
+    super.initState();
+
+    final item = widget.item;
+
+    _namaController = TextEditingController(
+      text: item?['item_name']?.toString() ?? '',
+    );
+
+    _kodeController = TextEditingController(
+      text: item?['code']?.toString() ?? '',
+    );
+
+    _gambarController = TextEditingController(
+      text: item?['image']?.toString() ?? '',
+    );
+
+    _spesifikasiController = TextEditingController(
+      text: item?['spesification']?.toString() ?? '',
+    );
+
+    _kategoriList = kCategories.map((e) => e.toString()).toList();
+
+    if (_kategoriList.isEmpty) {
+      _kategoriList.add('Umum');
+    }
+
+    _kategori = item?['category']?.toString() ?? _kategoriList.first;
+
+    if (!_kategoriList.contains(_kategori)) {
+      _kategoriList.add(_kategori);
+    }
+  }
+
+  @override
+  void dispose() {
+    _namaController.dispose();
+    _kodeController.dispose();
+    _gambarController.dispose();
+    _spesifikasiController.dispose();
+
+    super.dispose();
+  }
+
+  void _simpan() {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    Navigator.of(context).pop({
+      'item_name': _namaController.text.trim(),
+      'category': _kategori,
+      'code': _kodeController.text.trim(),
+      'image': _gambarController.text.trim(),
+      'spesification': _spesifikasiController.text.trim(),
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+
+      title: Text(
+        widget.item == null ? 'Tambah Barang' : 'Edit Barang',
+        style: const TextStyle(fontWeight: FontWeight.w700),
+      ),
+
+      content: SizedBox(
+        width: 420,
+        child: SingleChildScrollView(
+          child: Form(
+            key: _formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextFormField(
+                  controller: _namaController,
+                  decoration: const InputDecoration(
+                    labelText: 'Nama Barang',
+                    prefixIcon: Icon(Icons.inventory_2_outlined),
+                    border: OutlineInputBorder(),
+                  ),
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return 'Nama barang wajib diisi';
+                    }
+                    return null;
+                  },
+                ),
+
+                const SizedBox(height: 14),
+
+                DropdownButtonFormField<String>(
+                  value: _kategori,
+                  decoration: const InputDecoration(
+                    labelText: 'Kategori',
+                    prefixIcon: Icon(Icons.category_outlined),
+                    border: OutlineInputBorder(),
+                  ),
+                  items: _kategoriList.map((value) {
+                    return DropdownMenuItem<String>(
+                      value: value,
+                      child: Text(value),
+                    );
+                  }).toList(),
+                  onChanged: (value) {
+                    if (value != null) {
+                      setState(() {
+                        _kategori = value;
+                      });
+                    }
+                  },
+                ),
+
+                const SizedBox(height: 14),
+
+                TextFormField(
+                  controller: _kodeController,
+                  decoration: const InputDecoration(
+                    labelText: 'Kode Barang / Serial',
+                    prefixIcon: Icon(Icons.qr_code),
+                    border: OutlineInputBorder(),
+                  ),
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return 'Kode barang wajib diisi';
+                    }
+                    return null;
+                  },
+                ),
+
+                const SizedBox(height: 14),
+
+                TextFormField(
+                  controller: _gambarController,
+                  decoration: const InputDecoration(
+                    labelText: 'URL Gambar',
+                    prefixIcon: Icon(Icons.image_outlined),
+                    border: OutlineInputBorder(),
+                    hintText: 'https://...',
+                  ),
+                ),
+
+                const SizedBox(height: 14),
+
+                TextFormField(
+                  controller: _spesifikasiController,
+                  maxLines: 3,
+                  decoration: const InputDecoration(
+                    labelText: 'Spesifikasi Barang',
+                    prefixIcon: Icon(Icons.description_outlined),
+                    border: OutlineInputBorder(),
+                    alignLabelWithHint: true,
+                  ),
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return 'Spesifikasi wajib diisi';
+                    }
+                    return null;
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+
+      actions: [
+        TextButton(
+          onPressed: () {
+            Navigator.of(context).pop();
+          },
+          child: const Text('Batal'),
+        ),
+
+        ElevatedButton(
+          onPressed: _simpan,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color.fromARGB(255, 226, 11, 11),
+            foregroundColor: const Color.fromARGB(255, 198, 27, 27),
+          ),
+          child: Text(widget.item == null ? 'Simpan' : 'Perbarui'),
+        ),
+      ],
     );
   }
 }

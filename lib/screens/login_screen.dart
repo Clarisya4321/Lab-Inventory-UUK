@@ -32,24 +32,52 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _login() async {
     if (!_formKey.currentState!.validate()) return;
+
     setState(() {
       _loading = true;
       _error = null;
     });
 
     try {
+      // 1. Login ke Firebase Authentication.
       await _auth.login(_email.text, _password.text);
+
+      // 2. Ambil akun yang sedang login.
+      final user = _auth.currentUser;
+
+      if (user == null) {
+        throw Exception('Akun tidak ditemukan.');
+      }
+
+      // 3. Ambil role dari Firestore.
+      final role = await _auth.getUserRole(user.uid);
+
       if (!mounted) return;
+
+      // 4. Kirim role ke halaman utama.
       Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const MainScreen()),
+        MaterialPageRoute(
+          settings: RouteSettings(arguments: role),
+          builder: (_) => const MainScreen(),
+        ),
         (route) => false,
       );
     } on FirebaseAuthException catch (e) {
-      if (mounted) setState(() => _error = AuthService.pesanError(e.code));
+      if (mounted) {
+        setState(() {
+          _error = AuthService.pesanError(e.code);
+        });
+      }
     } catch (e) {
-      if (mounted) setState(() => _error = 'Terjadi kesalahan: $e');
+      if (mounted) {
+        setState(() {
+          _error = e.toString().replaceFirst('Exception: ', '');
+        });
+      }
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted) {
+        setState(() => _loading = false);
+      }
     }
   }
 
@@ -73,14 +101,19 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('Selamat Datang',
-                            style: TextStyle(
-                                fontSize: 22,
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.text)),
+                        const Text(
+                          'Selamat Datang',
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.text,
+                          ),
+                        ),
                         const SizedBox(height: 4),
-                        const Text('Masuk untuk melanjutkan',
-                            style: TextStyle(color: AppColors.muted)),
+                        const Text(
+                          'Masuk untuk melanjutkan',
+                          style: TextStyle(color: AppColors.muted),
+                        ),
                         const SizedBox(height: 22),
                         TextFormField(
                           controller: _email,
@@ -88,7 +121,9 @@ class _LoginScreenState extends State<LoginScreen> {
                           decoration: appInput('Email', Icons.email_rounded),
                           validator: (v) {
                             final t = (v ?? '').trim();
-                            if (t.isEmpty) return 'Email wajib diisi';
+                            if (t.isEmpty) {
+                              return 'Email wajib diisi';
+                            }
                             if (!t.contains('@') || !t.contains('.')) {
                               return 'Format email tidak valid';
                             }
@@ -109,12 +144,13 @@ class _LoginScreenState extends State<LoginScreen> {
                                     : Icons.visibility_rounded,
                                 color: AppColors.muted,
                               ),
-                              onPressed: () => setState(() => _hide = !_hide),
+                              onPressed: () {
+                                setState(() => _hide = !_hide);
+                              },
                             ),
                           ),
-                          validator: (v) => (v ?? '').isEmpty
-                              ? 'Password wajib diisi'
-                              : null,
+                          validator: (v) =>
+                              (v ?? '').isEmpty ? 'Password wajib diisi' : null,
                         ),
                         if (_error != null) ...[
                           const SizedBox(height: 14),
@@ -127,14 +163,20 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                             child: Row(
                               children: [
-                                const Icon(Icons.error_outline_rounded,
-                                    color: AppColors.borrowed, size: 20),
+                                const Icon(
+                                  Icons.error_outline_rounded,
+                                  color: AppColors.borrowed,
+                                  size: 20,
+                                ),
                                 const SizedBox(width: 8),
                                 Expanded(
-                                  child: Text(_error!,
-                                      style: const TextStyle(
-                                          color: AppColors.borrowed,
-                                          fontSize: 13)),
+                                  child: Text(
+                                    _error!,
+                                    style: const TextStyle(
+                                      color: AppColors.borrowed,
+                                      fontSize: 13,
+                                    ),
+                                  ),
                                 ),
                               ],
                             ),
@@ -148,34 +190,49 @@ class _LoginScreenState extends State<LoginScreen> {
                             foregroundColor: Colors.white,
                             minimumSize: const Size.fromHeight(52),
                             shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14)),
+                              borderRadius: BorderRadius.circular(14),
+                            ),
                           ),
                           child: _loading
                               ? const SizedBox(
                                   width: 22,
                                   height: 22,
                                   child: CircularProgressIndicator(
-                                      strokeWidth: 2.5, color: Colors.white))
-                              : const Text('Login',
+                                    strokeWidth: 2.5,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const Text(
+                                  'Login',
                                   style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w600)),
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
                         ),
                         const SizedBox(height: 10),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            const Text('Belum punya akun?',
-                                style: TextStyle(color: AppColors.muted)),
+                            const Text(
+                              'Belum punya akun?',
+                              style: TextStyle(color: AppColors.muted),
+                            ),
                             TextButton(
-                              onPressed: () => Navigator.of(context).push(
-                                MaterialPageRoute(
-                                    builder: (_) => const RegisterScreen()),
+                              onPressed: () {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => const RegisterScreen(),
+                                  ),
+                                );
+                              },
+                              child: const Text(
+                                'Daftar',
+                                style: TextStyle(
+                                  color: AppColors.accent,
+                                  fontWeight: FontWeight.w700,
+                                ),
                               ),
-                              child: const Text('Daftar',
-                                  style: TextStyle(
-                                      color: AppColors.accent,
-                                      fontWeight: FontWeight.w700)),
                             ),
                           ],
                         ),
